@@ -59,6 +59,9 @@
         /* Leaflet Pop-up Styling */
         .leaflet-popup-content-wrapper { border-radius: 12px; font-family: 'Inter', sans-serif; }
         .leaflet-popup-content { margin: 15px; color: #1e293b; }
+        
+        /* GPS box inside popup */
+        .gps-box { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.08); padding: 6px 10px; border-radius: 8px; margin-top: 6px; margin-bottom: 6px; font-size: 10px; font-family: monospace; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 6px; }
     </style>
 </head>
 <body>
@@ -84,50 +87,55 @@
         // 3. Create a layer specifically for the markers
         var liveDostMarkers = L.featureGroup().addTo(map);
 
-        // 4. The DOST Fetch Logic
-        const DOST_API_URL = "https://api.allorigins.win/raw?url=https%3A%2F%2Fphilsensors.asti.dost.gov.ph%2Fapi%2Fdata%2Fwaterlevel-parameter-latest%3Fascending%3Dfalse";
+        // 4. Using AllOrigins Proxy Link
+        const DOST_API_URL = "https://api.allorigins.win/get?url=" + encodeURIComponent("https://philsensors.asti.dost.gov.ph/api/data/waterlevel-parameter-latest?ascending=false");
 
         async function loadDOSTData() {
             try {
                 console.log("Fetching DOST data via proxy...");
                 const response = await fetch(DOST_API_URL);
-                const rawData = await response.json();
+                const rawWrapper = await response.json();
                 
-                // Determine structure based on how DOST packages it today
-                let sensorList = [];
-                if (Array.isArray(rawData)) sensorList = rawData;
-                else if (rawData.features) sensorList = rawData.features;
-                else if (rawData.data) sensorList = rawData.data;
+                // FIXED: Unpack and parse the string nested inside rawWrapper.contents
+                const actualData = JSON.parse(rawWrapper.contents);
+                
+                // Target the array inside the GeoJSON 'features' property
+                let sensorList = actualData.features || [];
 
-                console.log(`Successfully pulled ${sensorList.length} total sensors.`);
+                console.log(`Successfully unpacked ${sensorList.length} total sensors from the network.`);
 
                 liveDostMarkers.clearLayers();
                 let tarlacCount = 0;
 
                 // Loop through and plot Tarlac sensors
-                sensorList.forEach(sensor => {
-                    let province = (sensor.province || "").toUpperCase();
+                sensorList.forEach(feature => {
+                    let props = feature.properties || feature;
+                    let geom = feature.geometry;
+
+                    if (!props || !geom || !geom.coordinates) return;
+
+                    let province = (props.province || "").toUpperCase();
                     
                     if (province === "TARLAC") {
-                        // Extract Coordinates
-                        let lat = parseFloat(sensor.latitude || sensor.lat);
-                        let lng = parseFloat(sensor.longitude || sensor.long || sensor.lon);
+                        // Extract Coordinates from GeoJSON array [lng, lat]
+                        let lng = parseFloat(geom.coordinates[0]);
+                        let lat = parseFloat(geom.coordinates[1]);
 
                         if (!isNaN(lat) && !isNaN(lng)) {
                             tarlacCount++;
                             
                             // Determine Status & Color
-                            let isActive = sensor.status === 1 || sensor.station_status === 1;
-                            let statusColor = isActive ? '#10b981' : '#ef4444'; // Green if active, Red if offline
+                            let isActive = props.status === 1 || props.station_status === 1;
+                            let statusColor = isActive ? '#10b981' : '#ef4444'; 
                             let statusText = isActive ? 'ACTIVE' : 'OFFLINE';
                             
-                            // Extract Data
-                            let wl = sensor.waterlevel !== undefined ? sensor.waterlevel : sensor.water_level;
+                            // Extract Data Fields
+                            let wl = props.waterlevel !== undefined ? props.waterlevel : props.water_level;
                             let wlText = wl !== undefined && wl !== null ? `${wl} m` : 'Data Unavailable';
-                            let typeName = sensor.type_name || sensor.type || 'WLMS';
-                            let locationName = sensor.name || sensor.location || sensor.station_name || 'Unknown Location';
+                            let typeName = props.type_name || props.type || 'WLMS';
+                            let locationName = props.name || props.location || props.station_name || 'Unknown Location';
 
-                            // Create the Marker Dot
+                            // Create the Marker Dot Layout
                             let markerIcon = L.divIcon({
                                 html: `<div class="dost-pulse" style="width: 14px; height: 14px; background-color: ${statusColor}; border: 2px solid white; border-radius: 50%;"></div>`,
                                 className: 'custom-div-icon',
@@ -137,7 +145,7 @@
 
                             let marker = L.marker([lat, lng], { icon: markerIcon });
 
-                            // Build Pop-up content
+                            // Build Pop-up details
                             marker.bindPopup(`
                                 <div style="min-width: 200px;">
                                     <strong style="font-size: 14px; text-transform: uppercase; color: #0f172a; display: block; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px;">
@@ -151,11 +159,11 @@
                                         <b style="color: #64748b;">STATUS:</b> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
                                     </div>
                                     
-                                    <div style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; border-radius: 6px; margin-bottom: 10px; font-family: monospace; font-size: 10px; color: #475569;">
+                                    <div class="gps-box">
                                         <i class="fa-solid fa-location-crosshairs"></i> ${lat.toFixed(5)}, ${lng.toFixed(5)}
                                     </div>
                                     
-                                    <div style="font-size: 14px;">
+                                    <div style="font-size: 14px; margin-top: 8px;">
                                         <b>Water Level:</b> <span style="color: #0284c7; font-weight: 900;">${wlText}</span>
                                     </div>
                                 </div>
@@ -167,9 +175,14 @@
                 });
 
                 console.log(`✅ Success! Plotted ${tarlacCount} DOST sensors in Tarlac.`);
+                
+                // Fit map frame around the sensors if any were added
+                if (tarlacCount > 0) {
+                    map.fitBounds(liveDostMarkers.getBounds(), { padding: [50, 50] });
+                }
 
             } catch (error) {
-                console.error("🚨 Fetch Error:", error);
+                console.error("🚨 Sandbox Parse/Fetch Error:", error);
             }
         }
 
