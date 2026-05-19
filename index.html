@@ -362,6 +362,39 @@
   .hi-legend span { display: flex; align-items: center; gap: 6px; }
   .ld { width: 10px; height: 10px; border-radius: 2px; }
 
+  /* RAIN STATS STRIP */
+  .rain-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .rain-stat {
+    background: var(--panel);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rain-stat .rs-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .rain-stat .rs-value {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #38bdf8;
+    line-height: 1;
+  }
+  .rain-stat .rs-sub { font-size: 0.72rem; color: var(--muted); }
+
   /* HI INFO STRIP */
   .hi-info {
     background: #1a1a2e;
@@ -460,6 +493,13 @@
 
 <div class="charts-area">
   <div class="hi-info" id="hi-info"></div>
+
+  <div class="chart-block">
+    <h3>RAINFALL <span class="tag">mm · Daily Totals (T = Trace &lt;0.1mm)</span></h3>
+    <div class="chart-wrap"><canvas id="rainChart"></canvas></div>
+  </div>
+
+  <div class="rain-stats" id="rain-stats"></div>
 
   <div class="chart-block">
     <h3>TEMPERATURE <span class="tag">°C · MAX / MIN / DRY BULB / DEW POINT</span></h3>
@@ -777,7 +817,7 @@ const MONTH_NAMES = ["January","February","March","April"];
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentMonth = 'ALL';
 let visVars = { tmax: true, tmin: true, tdry: true, dew: true, hi: true };
-let tempChart, hiChart;
+let tempChart, hiChart, rainChart;
 
 function filtered() {
   if (currentMonth === 'ALL') return DATA;
@@ -890,6 +930,7 @@ function buildCharts(data) {
 
   if (tempChart) tempChart.destroy();
   if (hiChart)   hiChart.destroy();
+  if (rainChart) rainChart.destroy();
 
   tempChart = new Chart(document.getElementById('tempChart'), {
     type: 'line', data: { labels, datasets: tempDs },
@@ -900,6 +941,74 @@ function buildCharts(data) {
     type: 'line', data: { labels, datasets: hiDs },
     options: { ...CJ, scales: { ...CJ.scales, y: { ...CJ.scales.y, title: { display:true, text:'°C', color:'#475569', font:{family:'Space Mono',size:10} } } } }
   });
+
+  // Rainfall bars — numeric values only (T→0.05 for display, 0 stays 0)
+  const rainVals = data.map(d => d.rain === 'T' ? 0.05 : (parseFloat(d.rain) || 0));
+  rainChart = new Chart(document.getElementById('rainChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Rainfall (mm)',
+        data: rainVals,
+        borderColor: '#38bdf8',
+        backgroundColor: '#38bdf822',
+        borderWidth: 2,
+        pointRadius: rainVals.map(v => v > 0 ? 4 : 0),
+        pointHoverRadius: 6,
+        pointBackgroundColor: rainVals.map(v => v >= 1 ? '#38bdf8' : '#38bdf855'),
+        pointBorderColor: 'transparent',
+        tension: 0.2,
+        fill: true,
+      }]
+    },
+    options: {
+      ...CJ,
+      scales: {
+        x: { ...CJ.scales.x },
+        y: {
+          ...CJ.scales.y,
+          min: 0,
+          title: { display:true, text:'mm', color:'#475569', font:{family:'Space Mono',size:10} },
+          ticks: {
+            ...CJ.scales.y.ticks,
+            callback: v => v === 0.05 ? 'T' : v
+          }
+        }
+      },
+      plugins: {
+        ...CJ.plugins,
+        tooltip: {
+          ...CJ.plugins.tooltip,
+          callbacks: {
+            label: ctx => {
+              const raw = data[ctx.dataIndex].rain;
+              return raw === 'T' ? 'Trace (<0.1mm)' : `${raw} mm`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ─── RAINFALL STATS ───────────────────────────────────────────────────────────
+function renderRainStats(data) {
+  const numericRain = data.map(d => d.rain === 'T' ? 0 : (parseFloat(d.rain) || 0));
+  const total = numericRain.reduce((a,b)=>a+b,0);
+  const rainyDays = numericRain.filter(v=>v>0).length;
+  const traceDays = data.filter(d=>d.rain==='T').length;
+  const maxRain = Math.max(...numericRain);
+  const maxDay = data[numericRain.indexOf(maxRain)]?.date || '—';
+  const dryDays = data.filter(d=>d.rain==='0').length;
+
+  document.getElementById('rain-stats').innerHTML = `
+    <div class="rain-stat"><div class="rs-label">TOTAL RAINFALL</div><div class="rs-value">${total.toFixed(1)}<span style="font-size:0.9rem">mm</span></div><div class="rs-sub">Period total</div></div>
+    <div class="rain-stat"><div class="rs-label">PEAK 1-DAY</div><div class="rs-value">${maxRain.toFixed(1)}<span style="font-size:0.9rem">mm</span></div><div class="rs-sub">${maxDay}</div></div>
+    <div class="rain-stat"><div class="rs-label">RAINY DAYS</div><div class="rs-value" style="color:#34d399">${rainyDays}</div><div class="rs-sub">≥0.1mm recorded</div></div>
+    <div class="rain-stat"><div class="rs-label">TRACE DAYS</div><div class="rs-value" style="color:#38bdf8">${traceDays}</div><div class="rs-sub">&lt;0.1mm (T)</div></div>
+    <div class="rain-stat"><div class="rs-label">DRY DAYS</div><div class="rs-value" style="color:#475569">${dryDays}</div><div class="rs-sub">0mm recorded</div></div>
+  `;
 }
 
 // ─── CONTROLS ─────────────────────────────────────────────────────────────────
@@ -924,6 +1033,7 @@ function refresh() {
   renderStats(data);
   renderHIInfo(data);
   buildCharts(data);
+  renderRainStats(data);
   renderMuniHI();
 }
 
