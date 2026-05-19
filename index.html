@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOST Live Sensors - Sandbox</title>
+    <title>DOST Live Sensors - Sandbox Fix</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,36 +96,49 @@
                 const response = await fetch(DOST_API_URL);
                 const rawWrapper = await response.json();
                 
-                // FIXED: Unpack and parse the string nested inside rawWrapper.contents
+                // Unpack and parse the string nested inside rawWrapper.contents
                 const actualData = JSON.parse(rawWrapper.contents);
                 
-                // Target the array inside the GeoJSON 'features' property
-                let sensorList = actualData.features || [];
+                // Handle both GeoJSON arrays and flat data structures dynamically
+                let sensorList = actualData.features || actualData.data || actualData || [];
 
-                console.log(`Successfully unpacked ${sensorList.length} total sensors from the network.`);
+                console.log(`Unpacked ${sensorList.length} total network nodes.`);
 
                 liveDostMarkers.clearLayers();
                 let tarlacCount = 0;
 
-                // Loop through and plot Tarlac sensors
-                sensorList.forEach(feature => {
-                    let props = feature.properties || feature;
-                    let geom = feature.geometry;
-
-                    if (!props || !geom || !geom.coordinates) return;
-
-                    let province = (props.province || "").toUpperCase();
+                // Loop through sensors
+                sensorList.forEach(item => {
+                    // Look directly at the root item, or inside properties if present
+                    let props = item.properties ? item.properties : item;
+                    
+                    // Safe extract province text
+                    let province = (props.province || item.province || "").toUpperCase();
                     
                     if (province === "TARLAC") {
-                        // Extract Coordinates from GeoJSON array [lng, lat]
-                        let lng = parseFloat(geom.coordinates[0]);
-                        let lat = parseFloat(geom.coordinates[1]);
+                        
+                        // BULLETPROOF COORDINATE PICKER: Looks everywhere on the object
+                        let lat = NaN;
+                        let lng = NaN;
 
+                        if (item.latitude !== undefined && item.longitude !== undefined) {
+                            lat = parseFloat(item.latitude);
+                            lng = parseFloat(item.longitude);
+                        } else if (item.lat !== undefined && item.long !== undefined) {
+                            lat = parseFloat(item.lat);
+                            lng = parseFloat(item.long);
+                        } else if (item.geometry && item.geometry.coordinates) {
+                            lng = parseFloat(item.geometry.coordinates[0]);
+                            lat = parseFloat(item.geometry.coordinates[1]);
+                        }
+
+                        // If coordinates are valid numbers, plot the point!
                         if (!isNaN(lat) && !isNaN(lng)) {
                             tarlacCount++;
                             
                             // Determine Status & Color
-                            let isActive = props.status === 1 || props.station_status === 1;
+                            let statusVal = props.status !== undefined ? props.status : props.station_status;
+                            let isActive = statusVal === 1;
                             let statusColor = isActive ? '#10b981' : '#ef4444'; 
                             let statusText = isActive ? 'ACTIVE' : 'OFFLINE';
                             
@@ -176,7 +189,7 @@
 
                 console.log(`✅ Success! Plotted ${tarlacCount} DOST sensors in Tarlac.`);
                 
-                // Fit map frame around the sensors if any were added
+                // Fit map frame around the sensors if any were found
                 if (tarlacCount > 0) {
                     map.fitBounds(liveDostMarkers.getBounds(), { padding: [50, 50] });
                 }
