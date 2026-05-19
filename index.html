@@ -1,207 +1,1173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOST Live Sensors - Sandbox Fix</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tarlac Weather Dashboard — Hda. Luisita PAGASA 2026</title>
+<style>
+  /* ACCUWEATHER LIVE PANEL */
+  .live-panel {
+    background: linear-gradient(135deg, #0f1e35 0%, #0a1628 100%);
+    border-bottom: 1px solid #1f3a5f;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: #38bdf8;
+    letter-spacing: 0.1em;
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #38bdf8;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+  .live-metrics {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .live-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .live-metric .lm-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: #475569;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .live-metric .lm-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .live-metric .lm-sub {
+    font-size: 0.65rem;
+    color: #475569;
+  }
+  .live-condition {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .live-condition .lc-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+  .live-condition .lc-time {
+    font-size: 0.6rem;
+    color: #334155;
+    font-family: 'Space Mono', monospace;
+  }
+  .live-error {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: #475569;
+  }
+  .live-separator {
+    width: 1px; height: 40px;
+    background: #1f3a5f;
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --panel2: #1a2236;
+    --border: #1f2d47;
+    --accent-hot: #ff6b35;
+    --accent-warm: #fbbf24;
+    --accent-cool: #38bdf8;
+    --accent-dew: #34d399;
+    --accent-rh: #a78bfa;
+    --accent-hi: #f87171;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --label: #94a3b8;
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Sans', sans-serif;
+  }
 
-    <style>
-        body, html { margin: 0; padding: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #0f172a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Clean Header */
-        .header-panel {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 12px 24px;
-            border-radius: 30px;
-            color: white;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            text-align: center;
-        }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
 
-        .header-title {
-            font-size: 14px;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #38bdf8;
-            margin-bottom: 4px;
-        }
-        
-        .header-subtitle {
-            font-size: 10px;
-            font-weight: 600;
-            color: #94a3b8;
-            letter-spacing: 0.5px;
-        }
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 
-        /* Marker CSS */
-        .dost-pulse {
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
-        }
+  .header-left h1 {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    color: var(--accent-cool);
+    letter-spacing: 0.05em;
+  }
+  .header-left p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
 
-        /* Leaflet Pop-up Styling */
-        .leaflet-popup-content-wrapper { border-radius: 12px; font-family: 'Inter', sans-serif; }
-        .leaflet-popup-content { margin: 15px; color: #1e293b; }
-        
-        /* GPS box inside popup */
-        .gps-box { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.08); padding: 6px 10px; border-radius: 8px; margin-top: 6px; margin-bottom: 6px; font-size: 10px; font-family: monospace; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 6px; }
-    </style>
+  .station-badge {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--label);
+  }
+  .station-badge span { color: var(--accent-warm); font-weight: 700; }
+
+  /* CONTROLS */
+  .controls {
+    padding: 20px 32px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .controls label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-right: 4px;
+  }
+
+  .month-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--label);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    transition: all 0.15s;
+  }
+  .month-btn:hover { border-color: var(--accent-cool); color: var(--accent-cool); }
+  .month-btn.active {
+    background: var(--accent-cool);
+    color: #0a0e1a;
+    border-color: var(--accent-cool);
+    font-weight: 700;
+  }
+
+  .var-toggle {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .toggle-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--label);
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toggle-btn .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .toggle-btn.active { opacity: 1; }
+  .toggle-btn.inactive { opacity: 0.35; }
+
+  /* STAT CARDS */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-card {
+    background: var(--panel);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-card .s-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .stat-card .s-value {
+    font-family: var(--font-mono);
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .stat-card .s-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .hot  { color: var(--accent-hot); }
+  .warm { color: var(--accent-warm); }
+  .cool { color: var(--accent-cool); }
+  .dew  { color: var(--accent-dew); }
+  .rh   { color: var(--accent-rh); }
+  .hi   { color: var(--accent-hi); }
+
+  /* CHARTS */
+  .charts-area {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .chart-block {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .chart-block h3 {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chart-block h3 .tag {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+  .chart-wrap { position: relative; height: 240px; }
+
+  /* MUNICIPALITY HI SECTION */
+  #muni-hi-section {
+    margin-top: 0;
+  }
+  #muni-select option {
+    background: #1a2236;
+    color: #e2e8f0;
+  }
+
+  /* TABLE (kept for CSV-only use) */
+  .table-block {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .table-block h3 {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-scroll { overflow-x: auto; max-height: 380px; overflow-y: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  thead th {
+    background: var(--panel2);
+    padding: 10px 14px;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  thead th:first-child { text-align: center; }
+  tbody tr { border-bottom: 1px solid #1a2236; transition: background 0.1s; }
+  tbody tr:hover { background: var(--panel2); }
+  tbody td {
+    padding: 9px 14px;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--label);
+  }
+  tbody td:first-child { text-align: center; color: var(--muted); }
+  .hi-danger { color: #f87171; font-weight: 700; }
+  .hi-warn    { color: #fbbf24; font-weight: 600; }
+  .hi-caution { color: #86efac; }
+  .hi-safe    { color: var(--label); }
+
+  /* HI LEGEND */
+  .hi-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+  .hi-legend span { display: flex; align-items: center; gap: 6px; }
+  .ld { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* RAIN STATS STRIP */
+  .rain-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .rain-stat {
+    background: var(--panel);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rain-stat .rs-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .rain-stat .rs-value {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #38bdf8;
+    line-height: 1;
+  }
+  .rain-stat .rs-sub { font-size: 0.72rem; color: var(--muted); }
+
+  /* HI INFO STRIP */
+  .hi-info {
+    background: #1a1a2e;
+    border: 1px solid #2d2d5e;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 0.72rem;
+    color: #7c85b8;
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 20px 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* DOWNLOAD BTN */
+  .dl-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--label);
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    transition: all 0.15s;
+  }
+  .dl-btn:hover { border-color: var(--accent-dew); color: var(--accent-dew); }
+
+  @media(max-width:600px){
+    .header, .controls, .charts-area { padding: 16px; }
+    .chart-wrap { height: 200px; }
+    .var-toggle { margin-left: 0; }
+  }
+</style>
 </head>
 <body>
 
-    <div class="header-panel">
-        <div class="header-title">DOST-ASTI Live Feed Sandbox</div>
-        <div class="header-subtitle">Real-time PhilSensors Data (Tarlac)</div>
+<div class="header">
+  <div class="header-left">
+    <h1>TARLAC WEATHER MONITOR</h1>
+    <p>PDRRMO · Daily Climate Data · Jan – Apr 2026</p>
+  </div>
+  <div class="station-badge">
+    STN: <span>HDA. LUISITA, TARLAC</span> &nbsp;|&nbsp; SRC: PAGASA AGROMET
+  </div>
+</div>
+
+<!-- ACCUWEATHER LIVE CONDITIONS -->
+<div class="live-panel" id="live-panel">
+  <div class="live-badge"><div class="live-dot"></div>LIVE · ACCUWEATHER</div>
+  <div class="live-separator"></div>
+  <div id="live-content" class="live-metrics">
+    <div class="live-error">Fetching current conditions…</div>
+  </div>
+</div>
+
+<div class="controls">
+  <label>MONTH:</label>
+  <button class="month-btn active" onclick="setMonth('ALL')">ALL</button>
+  <button class="month-btn" onclick="setMonth(0)">JAN</button>
+  <button class="month-btn" onclick="setMonth(1)">FEB</button>
+  <button class="month-btn" onclick="setMonth(2)">MAR</button>
+  <button class="month-btn" onclick="setMonth(3)">APR</button>
+
+  <div class="var-toggle">
+    <button class="toggle-btn active" id="btn-tmax" onclick="toggleVar('tmax')">
+      <span class="dot" style="background:#ff6b35"></span>T MAX
+    </button>
+    <button class="toggle-btn active" id="btn-tmin" onclick="toggleVar('tmin')">
+      <span class="dot" style="background:#38bdf8"></span>T MIN
+    </button>
+    <button class="toggle-btn active" id="btn-tdry" onclick="toggleVar('tdry')">
+      <span class="dot" style="background:#fbbf24"></span>DRY BULB
+    </button>
+    <button class="toggle-btn active" id="btn-dew" onclick="toggleVar('dew')">
+      <span class="dot" style="background:#34d399"></span>DEW PT
+    </button>
+    <button class="toggle-btn active" id="btn-hi" onclick="toggleVar('hi')">
+      <span class="dot" style="background:#f87171"></span>HEAT IDX
+    </button>
+  </div>
+</div>
+
+<div class="stats-row" id="stats-row"></div>
+
+<div class="charts-area">
+  <div class="hi-info" id="hi-info"></div>
+
+  <div class="chart-block">
+    <h3>RAINFALL <span class="tag">mm · Daily Totals (T = Trace &lt;0.1mm)</span></h3>
+    <div class="chart-wrap"><canvas id="rainChart"></canvas></div>
+  </div>
+
+  <div class="rain-stats" id="rain-stats"></div>
+
+  <div class="chart-block">
+    <h3>TEMPERATURE <span class="tag">°C · MAX / MIN / DRY BULB / DEW POINT</span></h3>
+    <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+  </div>
+
+  <div class="chart-block">
+    <h3>HEAT INDEX <span class="tag">°C · Rothfusz Regression / PAGASA Scale</span></h3>
+    <div class="chart-wrap"><canvas id="hiChart"></canvas></div>
+  </div>
+
+  <!-- MUNICIPALITIES HEAT INDEX SECTION -->
+  <div class="table-block" id="muni-hi-section">
+    <h3 style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      MUNICIPAL REAL FEEL / HEAT INDEX
+      <span class="tag">TARLAC PROVINCE · ESTIMATED CONDITIONS</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <select id="muni-select" onchange="renderMuniHI()" style="
+          background:var(--panel2);
+          border:1px solid var(--border);
+          color:var(--label);
+          padding:5px 10px;
+          border-radius:6px;
+          font-family:var(--font-mono);
+          font-size:0.72rem;
+          cursor:pointer;
+          outline:none;
+        ">
+          <option value="ALL">ALL MUNICIPALITIES</option>
+          <option value="Tarlac City">Tarlac City</option>
+          <option value="Anao">Anao</option>
+          <option value="Bamban">Bamban</option>
+          <option value="Camiling">Camiling</option>
+          <option value="Capas">Capas</option>
+          <option value="Concepcion">Concepcion</option>
+          <option value="Gerona">Gerona</option>
+          <option value="La Paz">La Paz</option>
+          <option value="Mayantoc">Mayantoc</option>
+          <option value="Moncada">Moncada</option>
+          <option value="Paniqui">Paniqui</option>
+          <option value="Pura">Pura</option>
+          <option value="Ramos">Ramos</option>
+          <option value="San Clemente">San Clemente</option>
+          <option value="San Jose">San Jose</option>
+          <option value="San Manuel">San Manuel</option>
+          <option value="Santa Ignacia">Santa Ignacia</option>
+          <option value="Victoria">Victoria</option>
+        </select>
+      </div>
+    </h3>
+    <div id="muni-hi-content" style="padding:16px 20px;"></div>
+    <div class="hi-legend">
+      <span><span class="ld" style="background:#f87171"></span> DANGER (≥41°C)</span>
+      <span><span class="ld" style="background:#fbbf24"></span> EXTREME CAUTION (33–41°C)</span>
+      <span><span class="ld" style="background:#86efac"></span> CAUTION (27–33°C)</span>
+      <span><span class="ld" style="background:#475569"></span> NO CONCERN (&lt;27°C)</span>
+      <span style="margin-left:auto;font-size:0.65rem;color:#334155;">* Estimates based on elevation & distance offsets from Hda. Luisita PAGASA station</span>
     </div>
+  </div>
+</div>
 
-    <div id="map"></div>
+<footer>
+  <span>DATA SOURCE: PAGASA Agromet Station Hda. Luisita · Prepared by <strong style="color:var(--label)">Alvin Wong II</strong></span>
+  <span>PDRRMO TARLAC · Jan 1 – Apr 30, 2026</span>
+</footer>
 
-    <script>
-        // 1. Initialize the Map centered on Tarlac
-        var map = L.map('map', { zoomControl: false }).setView([15.48, 120.59], 10);
-        L.control.zoom({ position: 'topleft' }).addTo(map);
+<script>
+// ─── ACCUWEATHER LIVE FETCH ───────────────────────────────────────────────────
+const AW_API_KEY   = 'zpka_49762911edec4b599990b4b9e3e6e81d_d560b2ec'; // ← replace with your new key
+const AW_LOC_KEY   = '207573';            // Tarlac City, PH (AccuWeather location key)
+const AW_URL = `https://dataservice.accuweather.com/currentconditions/v1/${AW_LOC_KEY}?apikey=${AW_API_KEY}&details=true`;
 
-        // 2. Add Dark Basemap
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19
-        }).addTo(map);
+async function fetchLive() {
+  try {
+    const res = await fetch(AW_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const c = data[0];
 
-        // 3. Create a layer specifically for the markers
-        var liveDostMarkers = L.featureGroup().addTo(map);
+    const temp       = c.Temperature.Metric.Value;
+    const realFeel   = c.RealFeelTemperature.Metric.Value;
+    const realFeelSh = c.RealFeelTemperatureShade?.Metric?.Value ?? '—';
+    const humidity   = c.RelativeHumidity;
+    const windSpd    = c.Wind.Speed.Metric.Value;
+    const windDir    = c.Wind.Direction.Localized;
+    const uvIdx      = c.UVIndex;
+    const uvTxt      = c.UVIndexText;
+    const condition  = c.WeatherText;
+    const obsTime    = new Date(c.LocalObservationDateTime).toLocaleTimeString('en-PH', {hour:'2-digit',minute:'2-digit'});
 
-        // 4. Using AllOrigins Proxy Link
-        const DOST_API_URL = "https://api.allorigins.win/get?url=" + encodeURIComponent("https://philsensors.asti.dost.gov.ph/api/data/waterlevel-parameter-latest?ascending=false");
+    // Heat index color
+    const hiColor = realFeel >= 41 ? '#f87171' : realFeel >= 33 ? '#fbbf24' : realFeel >= 27 ? '#34d399' : '#38bdf8';
 
-        async function loadDOSTData() {
-            try {
-                console.log("Fetching DOST data via proxy...");
-                const response = await fetch(DOST_API_URL);
-                const rawWrapper = await response.json();
-                
-                // Unpack and parse the string nested inside rawWrapper.contents
-                const actualData = JSON.parse(rawWrapper.contents);
-                
-                // Handle both GeoJSON arrays and flat data structures dynamically
-                let sensorList = actualData.features || actualData.data || actualData || [];
+    document.getElementById('live-content').innerHTML = `
+      <div class="live-metric">
+        <div class="lm-label">TEMP</div>
+        <div class="lm-value" style="color:#ff6b35">${temp}°C</div>
+        <div class="lm-sub">${condition}</div>
+      </div>
+      <div class="live-separator"></div>
+      <div class="live-metric">
+        <div class="lm-label">REALFEEL®</div>
+        <div class="lm-value" style="color:${hiColor}">${realFeel}°C</div>
+        <div class="lm-sub">Shade: ${realFeelSh}°C</div>
+      </div>
+      <div class="live-separator"></div>
+      <div class="live-metric">
+        <div class="lm-label">HUMIDITY</div>
+        <div class="lm-value" style="color:#a78bfa">${humidity}%</div>
+        <div class="lm-sub">RH</div>
+      </div>
+      <div class="live-separator"></div>
+      <div class="live-metric">
+        <div class="lm-label">WIND</div>
+        <div class="lm-value" style="color:#94a3b8;font-size:1rem">${windSpd} <span style="font-size:0.7rem">km/h</span></div>
+        <div class="lm-sub">${windDir}</div>
+      </div>
+      <div class="live-separator"></div>
+      <div class="live-metric">
+        <div class="lm-label">UV INDEX</div>
+        <div class="lm-value" style="color:#fbbf24;font-size:1rem">${uvIdx}</div>
+        <div class="lm-sub">${uvTxt}</div>
+      </div>
+      <div class="live-separator"></div>
+      <div class="live-condition">
+        <div class="lc-text">📍 Tarlac City</div>
+        <div class="lc-time">Last obs: ${obsTime}</div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('live-content').innerHTML =
+      `<div class="live-error">⚠ Could not fetch live data — check API key or network. (${e.message})</div>`;
+  }
+}
 
-                console.log(`Unpacked ${sensorList.length} total network nodes.`);
+fetchLive();
+setInterval(fetchLive, 30 * 60 * 1000); // refresh every 30 mins
+</script>
 
-                liveDostMarkers.clearLayers();
-                let tarlacCount = 0;
+<script>
+// ─── RAW DATA ────────────────────────────────────────────────────────────────
+const RAW = [
+  // [month_idx, date_str, tmax, tmin, dry, wet, rh, rain_str]
+  // JANUARY
+  [0,"Jan 01",30.0,23.0,28.7,24.5,71,"25.2"],
+  [0,"Jan 02",25.6,22.2,25.2,22.0,76,"1.2"],
+  [0,"Jan 03",28.4,21.5,28.2,21.5,55,"0"],
+  [0,"Jan 04",30.0,21.2,29.5,22.3,53,"0"],
+  [0,"Jan 05",30.9,22.1,30.8,23.2,52,"0"],
+  [0,"Jan 06",30.4,22.0,30.5,24.1,59,"0"],
+  [0,"Jan 07",29.0,21.0,28.9,23.4,63,"0"],
+  [0,"Jan 08",30.4,22.6,30.4,23.7,57,"0"],
+  [0,"Jan 09",29.8,22.3,29.6,23.5,60,"0"],
+  [0,"Jan 10",30.1,21.7,29.8,23.9,61,"0"],
+  [0,"Jan 11",32.3,21.9,31.9,24.8,56,"0"],
+  [0,"Jan 12",30.0,22.1,31.0,24.7,60,"0"],
+  [0,"Jan 13",30.1,22.5,29.7,24.6,62,"0.4"],
+  [0,"Jan 14",31.0,22.4,30.9,24.8,61,"0"],
+  [0,"Jan 15",30.1,21.4,30.1,23.2,56,"0"],
+  [0,"Jan 16",31.7,22.5,31.4,23.7,52,"0"],
+  [0,"Jan 17",30.7,21.6,30.4,23.2,54,"0"],
+  [0,"Jan 18",31.2,21.7,31.1,22.7,48,"0"],
+  [0,"Jan 19",31.8,22.3,31.4,23.5,51,"T"],
+  [0,"Jan 20",31.7,22.8,31.3,23.4,51,"0"],
+  [0,"Jan 21",31.2,18.0,31.0,22.9,50,"0"],
+  [0,"Jan 22",31.0,17.8,29.5,21.3,48,"0"],
+  [0,"Jan 23",29.5,16.7,28.7,19.5,42,"0"],
+  [0,"Jan 24",30.5,17.6,29.3,21.3,49,"0"],
+  [0,"Jan 25",30.9,18.3,27.3,21.4,59,"0"],
+  [0,"Jan 26",30.0,21.3,29.7,23.4,59,"T"],
+  [0,"Jan 27",30.0,21.6,29.8,23.4,58,"0"],
+  [0,"Jan 28",30.7,19.3,30.4,23.1,54,"0"],
+  [0,"Jan 29",31.0,18.1,31.0,23.7,54,"0"],
+  [0,"Jan 30",29.5,19.1,29.2,22.5,65,"0"],
+  [0,"Jan 31",30.1,19.5,29.7,21.2,46,"0"],
+  // FEBRUARY
+  [1,"Feb 01",30.2,19.9,30.1,20.9,43,"0"],
+  [1,"Feb 02",30.7,19.0,30.8,22.3,43,"0"],
+  [1,"Feb 03",31.7,19.0,31.6,22.1,43,"0"],
+  [1,"Feb 04",29.2,17.5,28.9,22.8,59,"0"],
+  [1,"Feb 05",29.7,18.5,29.5,20.8,45,"0"],
+  [1,"Feb 06",29.1,21.6,29.3,20.8,46,"0"],
+  [1,"Feb 07",30.1,22.0,30.2,23.7,58,"0"],
+  [1,"Feb 08",27.5,21.7,27.7,21.8,59,"0"],
+  [1,"Feb 09",30.0,21.6,30.1,21.9,48,"0"],
+  [1,"Feb 10",30.0,20.0,30.7,23.0,52,"0"],
+  [1,"Feb 11",31.5,22.7,31.6,23.8,48,"0"],
+  [1,"Feb 12",30.5,21.3,30.5,23.7,56,"0"],
+  [1,"Feb 13",31.0,23.5,31.4,23.3,50,"0"],
+  [1,"Feb 14",27.1,23.4,25.8,24.5,90,"2.8"],
+  [1,"Feb 15",31.3,23.2,31.3,25.1,60,"0"],
+  [1,"Feb 16",31.8,23.2,31.8,25.1,58,"T"],
+  [1,"Feb 17",33.0,20.8,32.8,25.7,56,"0"],
+  [1,"Feb 18",32.6,20.5,32.4,24.1,50,"0"],
+  [1,"Feb 19",31.3,21.2,30.4,23.0,53,"0"],
+  [1,"Feb 20",31.0,21.7,30.6,23.4,54,"0"],
+  [1,"Feb 21",29.0,19.5,28.6,23.3,64,"0"],
+  [1,"Feb 22",31.9,20.2,31.7,23.3,48,"0"],
+  [1,"Feb 23",32.0,20.5,30.9,24.3,58,"0"],
+  [1,"Feb 24",31.0,21.2,32.3,25.1,56,"0"],
+  [1,"Feb 25",32.3,22.5,32.3,25.1,56,"0"],
+  [1,"Feb 26",32.5,21.3,33.3,24.3,47,"0"],
+  [1,"Feb 27",33.4,22.4,33.2,24.2,47,"0"],
+  [1,"Feb 28",33.0,21.0,32.8,23.3,44,"0"],
+  // MARCH
+  [2,"Mar 01",32.8,22.4,32.5,23.6,47,"0"],
+  [2,"Mar 02",34.2,24.3,33.8,24.6,47,"0"],
+  [2,"Mar 03",33.7,21.8,34.0,25.1,48,"0"],
+  [2,"Mar 04",33.3,22.3,32.0,24.1,52,"0"],
+  [2,"Mar 05",34.1,23.0,33.0,23.8,46,"0"],
+  [2,"Mar 06",32.9,22.8,32.8,23.9,47,"0"],
+  [2,"Mar 07",33.6,22.5,33.0,23.1,43,"0"],
+  [2,"Mar 08",30.1,21.9,28.7,23.1,62,"T"],
+  [2,"Mar 09",31.6,20.4,31.4,23.3,50,"0"],
+  [2,"Mar 10",31.6,18.9,31.3,21.8,43,"0"],
+  [2,"Mar 11",31.8,20.1,30.1,21.1,44,"0"],
+  [2,"Mar 12",31.7,21.6,31.3,21.4,41,"22.5"],
+  [2,"Mar 13",30.9,16.2,30.4,22.0,48,"0"],
+  [2,"Mar 14",30.0,16.4,29.8,19.8,39,"0"],
+  [2,"Mar 15",30.2,17.6,30.1,19.0,34,"0"],
+  [2,"Mar 16",30.0,20.0,29.3,20.0,42,"0"],
+  [2,"Mar 17",30.2,21.9,30.0,22.3,51,"0"],
+  [2,"Mar 18",30.2,22.8,30.1,23.1,55,"0"],
+  [2,"Mar 19",32.5,21.8,32.4,23.1,43,"0"],
+  [2,"Mar 20",31.6,21.2,30.9,22.8,50,"0"],
+  [2,"Mar 21",32.8,19.7,32.6,21.9,38,"0"],
+  [2,"Mar 22",31.4,22.5,31.4,23.5,51,"0"],
+  [2,"Mar 23",33.7,20.7,33.4,23.3,42,"0"],
+  [2,"Mar 24",33.6,19.7,33.6,23.4,42,"0"],
+  [2,"Mar 25",34.3,22.2,34.0,19.3,37,"0"],
+  [2,"Mar 26",34.8,22.0,34.5,24.0,41,"0"],
+  [2,"Mar 27",34.8,22.2,34.9,25.4,46,"0"],
+  [2,"Mar 28",33.6,23.1,33.6,24.8,48,"0"],
+  [2,"Mar 29",33.0,24.4,33.2,24.3,48,"1.8"],
+  [2,"Mar 30",35.0,22.6,34.6,25.2,46,"0"],
+  [2,"Mar 31",34.7,22.3,34.5,24.4,43,"0"],
+  // APRIL
+  [3,"Apr 01",35.1,22.4,34.8,23.5,38,"0"],
+  [3,"Apr 02",34.5,18.1,34.2,23.5,40,"0"],
+  [3,"Apr 03",34.6,20.4,34.6,21.7,31,"0"],
+  [3,"Apr 04",34.5,21.9,34.3,23.9,42,"0"],
+  [3,"Apr 05",34.7,21.9,34.6,23.5,39,"0"],
+  [3,"Apr 06",35.1,22.1,35.0,24.3,41,"0"],
+  [3,"Apr 07",36.0,23.4,36.0,23.6,35,"0"],
+  [3,"Apr 08",35.0,23.3,34.3,24.8,46,"0"],
+  [3,"Apr 09",36.1,23.5,35.9,22.3,34,"0"],
+  [3,"Apr 10",36.1,24.4,36.0,24.9,40,"0"],
+  [3,"Apr 11",36.1,22.5,35.8,23.9,36,"0"],
+  [3,"Apr 12",36.1,21.5,35.4,24.0,38,"0"],
+  [3,"Apr 13",36.0,23.4,35.3,23.3,36,"0"],
+  [3,"Apr 14",36.1,23.9,35.7,22.6,32,"0"],
+  [3,"Apr 15",35.4,22.8,34.9,27.2,33,"0"],
+  [3,"Apr 16",35.7,23.4,35.3,23.7,37,"0"],
+  [3,"Apr 17",35.7,22.2,35.8,23.7,36,"0"],
+  [3,"Apr 18",35.8,21.6,35.4,24.1,39,"0"],
+  [3,"Apr 19",35.4,23.4,35.2,24.8,42,"0"],
+  [3,"Apr 20",36.0,24.5,36.0,24.5,38,"6.2"],
+  [3,"Apr 21",34.3,22.3,33.7,24.1,45,"0"],
+  [3,"Apr 22",35.0,23.2,34.7,23.7,39,"0"],
+  [3,"Apr 23",35.2,24.3,35.2,24.2,42,"0"],
+  [3,"Apr 24",36.0,24.4,35.3,23.6,37,"0"],
+  [3,"Apr 25",36.4,24.3,36.3,21.4,25,"0"],
+  [3,"Apr 26",36.9,24.5,36.9,23.8,33,"0"],
+  [3,"Apr 27",36.8,24.4,36.8,21.5,24,"0"],
+  [3,"Apr 28",34.3,25.3,34.3,25.4,49,"0"],
+  [3,"Apr 29",35.6,22.6,35.6,24.6,40,"0"],
+  [3,"Apr 30",35.1,23.6,35.1,24.2,40,"0"],
+  // MAY DATA REMOVED
+];
 
-                // Loop through sensors
-                sensorList.forEach(item => {
-                    // Look directly at the root item, or inside properties if present
-                    let props = item.properties ? item.properties : item;
-                    
-                    // Safe extract province text
-                    let province = (props.province || item.province || "").toUpperCase();
-                    
-                    if (province === "TARLAC") {
-                        
-                        // BULLETPROOF COORDINATE PICKER: Looks everywhere on the object
-                        let lat = NaN;
-                        let lng = NaN;
+// ─── DERIVED CALCULATIONS ─────────────────────────────────────────────────────
 
-                        if (item.latitude !== undefined && item.longitude !== undefined) {
-                            lat = parseFloat(item.latitude);
-                            lng = parseFloat(item.longitude);
-                        } else if (item.lat !== undefined && item.long !== undefined) {
-                            lat = parseFloat(item.lat);
-                            lng = parseFloat(item.long);
-                        } else if (item.geometry && item.geometry.coordinates) {
-                            lng = parseFloat(item.geometry.coordinates[0]);
-                            lat = parseFloat(item.geometry.coordinates[1]);
-                        }
+// Dew Point from Dry Bulb & Wet Bulb (Sprung formula approximation)
+// Magnus formula using RH for better accuracy
+function calcDewPoint(T, RH) {
+  const a = 17.27, b = 237.7;
+  const alpha = (a * T) / (b + T) + Math.log(RH / 100);
+  return (b * alpha) / (a - alpha);
+}
 
-                        // If coordinates are valid numbers, plot the point!
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                            tarlacCount++;
-                            
-                            // Determine Status & Color
-                            let statusVal = props.status !== undefined ? props.status : props.station_status;
-                            let isActive = statusVal === 1;
-                            let statusColor = isActive ? '#10b981' : '#ef4444'; 
-                            let statusText = isActive ? 'ACTIVE' : 'OFFLINE';
-                            
-                            // Extract Data Fields
-                            let wl = props.waterlevel !== undefined ? props.waterlevel : props.water_level;
-                            let wlText = wl !== undefined && wl !== null ? `${wl} m` : 'Data Unavailable';
-                            let typeName = props.type_name || props.type || 'WLMS';
-                            let locationName = props.name || props.location || props.station_name || 'Unknown Location';
+// Heat Index (Rothfusz regression, NWS / PAGASA)
+// Valid for T ≥ 27°C and RH ≥ 40%
+function calcHI(T, RH) {
+  if (T < 27) return T; // below threshold, HI ≈ actual temp
+  const HI =
+    -8.78469475556
+    + 1.61139411 * T
+    + 2.338548939 * RH
+    - 0.14611605 * T * RH
+    - 0.012308094 * T * T
+    - 0.016424828 * RH * RH
+    + 0.002211732 * T * T * RH
+    + 0.00072546 * T * RH * RH
+    - 0.000003582 * T * T * RH * RH;
+  return parseFloat(HI.toFixed(1));
+}
 
-                            // Create the Marker Dot Layout
-                            let markerIcon = L.divIcon({
-                                html: `<div class="dost-pulse" style="width: 14px; height: 14px; background-color: ${statusColor}; border: 2px solid white; border-radius: 50%;"></div>`,
-                                className: 'custom-div-icon',
-                                iconSize: [14, 14],
-                                iconAnchor: [7, 7]
-                            });
+function hiCategory(hi) {
+  if (hi >= 41) return { label: "DANGER", cls: "hi-danger" };
+  if (hi >= 33) return { label: "EXTREME CAUTION", cls: "hi-warn" };
+  if (hi >= 27) return { label: "CAUTION", cls: "hi-caution" };
+  return { label: "NO CONCERN", cls: "hi-safe" };
+}
 
-                            let marker = L.marker([lat, lng], { icon: markerIcon });
+// Build processed data
+const DATA = RAW.map(r => {
+  const [month, date, tmax, tmin, dry, wet, rh, rain] = r;
+  const dew = parseFloat(calcDewPoint(dry, rh).toFixed(1));
+  const hi = calcHI(dry, rh);
+  return { month, date, tmax, tmin, dry, wet, rh, rain, dew, hi };
+});
 
-                            // Build Pop-up details
-                            marker.bindPopup(`
-                                <div style="min-width: 200px;">
-                                    <strong style="font-size: 14px; text-transform: uppercase; color: #0f172a; display: block; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px;">
-                                        ${locationName}
-                                    </strong>
-                                    
-                                    <div style="font-size: 12px; margin-bottom: 6px;">
-                                        <b style="color: #64748b;">TYPE:</b> ${typeName}
-                                    </div>
-                                    <div style="font-size: 12px; margin-bottom: 10px;">
-                                        <b style="color: #64748b;">STATUS:</b> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
-                                    </div>
-                                    
-                                    <div class="gps-box">
-                                        <i class="fa-solid fa-location-crosshairs"></i> ${lat.toFixed(5)}, ${lng.toFixed(5)}
-                                    </div>
-                                    
-                                    <div style="font-size: 14px; margin-top: 8px;">
-                                        <b>Water Level:</b> <span style="color: #0284c7; font-weight: 900;">${wlText}</span>
-                                    </div>
-                                </div>
-                            `);
-                            
-                            liveDostMarkers.addLayer(marker);
-                        }
-                    }
-                });
+const MONTH_NAMES = ["January","February","March","April"];
 
-                console.log(`✅ Success! Plotted ${tarlacCount} DOST sensors in Tarlac.`);
-                
-                // Fit map frame around the sensors if any were found
-                if (tarlacCount > 0) {
-                    map.fitBounds(liveDostMarkers.getBounds(), { padding: [50, 50] });
-                }
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentMonth = 'ALL';
+let visVars = { tmax: true, tmin: true, tdry: true, dew: true, hi: true };
+let tempChart, hiChart, rainChart;
 
-            } catch (error) {
-                console.error("🚨 Sandbox Parse/Fetch Error:", error);
-            }
+function filtered() {
+  if (currentMonth === 'ALL') return DATA;
+  return DATA.filter(d => d.month === currentMonth);
+}
+
+// ─── STATS CARDS ─────────────────────────────────────────────────────────────
+function renderStats(data) {
+  const tmaxArr = data.map(d => d.tmax), tminArr = data.map(d => d.tmin);
+  const dewArr = data.map(d => d.dew), hiArr = data.map(d => d.hi);
+  const rhArr = data.map(d => d.rh);
+  const avg = arr => (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+  const mx = arr => Math.max(...arr).toFixed(1);
+  const mn = arr => Math.min(...arr).toFixed(1);
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="s-label">PEAK T MAX</div><div class="s-value hot">${mx(tmaxArr)}°</div><div class="s-sub">Avg: ${avg(tmaxArr)}°C</div></div>
+    <div class="stat-card"><div class="s-label">LOWEST T MIN</div><div class="s-value cool">${mn(tminArr)}°</div><div class="s-sub">Avg: ${avg(tminArr)}°C</div></div>
+    <div class="stat-card"><div class="s-label">AVG DEW POINT</div><div class="s-value dew">${avg(dewArr)}°</div><div class="s-sub">Min: ${mn(dewArr)}° / Max: ${mx(dewArr)}°C</div></div>
+    <div class="stat-card"><div class="s-label">PEAK HEAT IDX</div><div class="s-value hi">${mx(hiArr)}°</div><div class="s-sub">Avg: ${avg(hiArr)}°C</div></div>
+    <div class="stat-card"><div class="s-label">AVG REL HUMID</div><div class="s-value rh">${avg(rhArr)}%</div><div class="s-sub">Min: ${mn(rhArr)}% / Max: ${mx(rhArr)}%</div></div>
+    <div class="stat-card"><div class="s-label">DANGER DAYS</div><div class="s-value" style="color:#f87171">${hiArr.filter(v=>v>=41).length}</div><div class="s-sub">HI ≥ 41°C</div></div>
+  `;
+}
+
+// ─── HI INFO ─────────────────────────────────────────────────────────────────
+function renderHIInfo(data) {
+  const hiArr = data.map(d => d.hi);
+  const danger = hiArr.filter(v => v >= 41).length;
+  const extreme = hiArr.filter(v => v >= 33 && v < 41).length;
+  const caution = hiArr.filter(v => v >= 27 && v < 33).length;
+  document.getElementById('hi-info').innerHTML =
+    `ℹ Heat Index computed via NWS Rothfusz regression using Dry Bulb Temp + Relative Humidity. Dew Point via Magnus-Tetens formula. &nbsp;&nbsp;|&nbsp;&nbsp; 
+     <span style="color:#f87171">Danger: ${danger}d</span> &nbsp;
+     <span style="color:#fbbf24">Extreme Caution: ${extreme}d</span> &nbsp;
+     <span style="color:#86efac">Caution: ${caution}d</span> &nbsp;
+     out of ${data.length} days in view.`;
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+const CJ = {
+  responsive: true, maintainAspectRatio: false,
+  animation: { duration: 300 },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#1a2236',
+      borderColor: '#1f2d47',
+      borderWidth: 1,
+      titleColor: '#94a3b8',
+      bodyColor: '#e2e8f0',
+      titleFont: { family: 'Space Mono', size: 11 },
+      bodyFont: { family: 'Space Mono', size: 11 },
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#475569', font: { family: 'Space Mono', size: 9 }, maxRotation: 60, maxTicksLimit: 16 },
+      grid: { color: '#1a2236' },
+    },
+    y: {
+      ticks: { color: '#475569', font: { family: 'Space Mono', size: 10 } },
+      grid: { color: '#1a2236' },
+    }
+  }
+};
+
+function buildCharts(data) {
+  const labels = data.map(d => d.date);
+
+  const ds = (label, col, arr, type='line', fill=false) => ({
+    label, data: arr,
+    borderColor: col, backgroundColor: fill ? col+'22' : col+'88',
+    borderWidth: type==='line' ? 1.5 : 0,
+    pointRadius: labels.length > 60 ? 0 : 2,
+    pointHoverRadius: 4,
+    tension: 0.3,
+    fill: fill,
+    type,
+  });
+
+  // Temp chart
+  const tempDs = [];
+  if (visVars.tmax) tempDs.push(ds('T Max', '#ff6b35', data.map(d=>d.tmax)));
+  if (visVars.tmin) tempDs.push(ds('T Min', '#38bdf8', data.map(d=>d.tmin)));
+  if (visVars.tdry) tempDs.push(ds('Dry Bulb', '#fbbf24', data.map(d=>d.dry)));
+  if (visVars.dew)  tempDs.push(ds('Dew Pt', '#34d399', data.map(d=>d.dew), 'line', true));
+
+  const hiDs = [];
+  if (visVars.hi) {
+    hiDs.push({
+      label: 'Heat Index', data: data.map(d=>d.hi),
+      borderColor: '#f87171', backgroundColor: data.map(d => {
+        if (d.hi >= 41) return '#f8717155';
+        if (d.hi >= 33) return '#fbbf2444';
+        if (d.hi >= 27) return '#86efac33';
+        return '#47556933';
+      }),
+      borderWidth: 1.5,
+      pointRadius: labels.length > 60 ? 0 : 2,
+      pointHoverRadius: 4,
+      tension: 0.3,
+      fill: true,
+      type: 'line',
+    });
+    // Reference lines as dataset
+    hiDs.push({ label: 'Danger (41°C)', data: Array(labels.length).fill(41), borderColor:'#f8717155', borderWidth:1, borderDash:[4,4], pointRadius:0, type:'line', fill:false });
+    hiDs.push({ label: 'Ext Caution (33°C)', data: Array(labels.length).fill(33), borderColor:'#fbbf2455', borderWidth:1, borderDash:[4,4], pointRadius:0, type:'line', fill:false });
+  }
+
+  if (tempChart) tempChart.destroy();
+  if (hiChart)   hiChart.destroy();
+  if (rainChart) rainChart.destroy();
+
+  tempChart = new Chart(document.getElementById('tempChart'), {
+    type: 'line', data: { labels, datasets: tempDs },
+    options: { ...CJ, scales: { ...CJ.scales, y: { ...CJ.scales.y, title: { display:true, text:'°C', color:'#475569', font:{family:'Space Mono',size:10} } } } }
+  });
+
+  hiChart = new Chart(document.getElementById('hiChart'), {
+    type: 'line', data: { labels, datasets: hiDs },
+    options: { ...CJ, scales: { ...CJ.scales, y: { ...CJ.scales.y, title: { display:true, text:'°C', color:'#475569', font:{family:'Space Mono',size:10} } } } }
+  });
+
+  // Rainfall bars — numeric values only (T→0.05 for display, 0 stays 0)
+  const rainVals = data.map(d => d.rain === 'T' ? 0.05 : (parseFloat(d.rain) || 0));
+  rainChart = new Chart(document.getElementById('rainChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Rainfall (mm)',
+        data: rainVals,
+        borderColor: '#38bdf8',
+        backgroundColor: '#38bdf822',
+        borderWidth: 2,
+        pointRadius: rainVals.map(v => v > 0 ? 4 : 0),
+        pointHoverRadius: 6,
+        pointBackgroundColor: rainVals.map(v => v >= 1 ? '#38bdf8' : '#38bdf855'),
+        pointBorderColor: 'transparent',
+        tension: 0.2,
+        fill: true,
+      }]
+    },
+    options: {
+      ...CJ,
+      scales: {
+        x: { ...CJ.scales.x },
+        y: {
+          ...CJ.scales.y,
+          min: 0,
+          title: { display:true, text:'mm', color:'#475569', font:{family:'Space Mono',size:10} },
+          ticks: {
+            ...CJ.scales.y.ticks,
+            callback: v => v === 0.05 ? 'T' : v
+          }
         }
+      },
+      plugins: {
+        ...CJ.plugins,
+        tooltip: {
+          ...CJ.plugins.tooltip,
+          callbacks: {
+            label: ctx => {
+              const raw = data[ctx.dataIndex].rain;
+              return raw === 'T' ? 'Trace (<0.1mm)' : `${raw} mm`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
 
-        // 5. Run the fetch immediately
-        loadDOSTData();
+// ─── RAINFALL STATS ───────────────────────────────────────────────────────────
+function renderRainStats(data) {
+  const numericRain = data.map(d => d.rain === 'T' ? 0 : (parseFloat(d.rain) || 0));
+  const total = numericRain.reduce((a,b)=>a+b,0);
+  const rainyDays = numericRain.filter(v=>v>0).length;
+  const traceDays = data.filter(d=>d.rain==='T').length;
+  const maxRain = Math.max(...numericRain);
+  const maxDay = data[numericRain.indexOf(maxRain)]?.date || '—';
+  const dryDays = data.filter(d=>d.rain==='0').length;
 
-    </script>
+  document.getElementById('rain-stats').innerHTML = `
+    <div class="rain-stat"><div class="rs-label">TOTAL RAINFALL</div><div class="rs-value">${total.toFixed(1)}<span style="font-size:0.9rem">mm</span></div><div class="rs-sub">Period total</div></div>
+    <div class="rain-stat"><div class="rs-label">PEAK 1-DAY</div><div class="rs-value">${maxRain.toFixed(1)}<span style="font-size:0.9rem">mm</span></div><div class="rs-sub">${maxDay}</div></div>
+    <div class="rain-stat"><div class="rs-label">RAINY DAYS</div><div class="rs-value" style="color:#34d399">${rainyDays}</div><div class="rs-sub">≥0.1mm recorded</div></div>
+    <div class="rain-stat"><div class="rs-label">TRACE DAYS</div><div class="rs-value" style="color:#38bdf8">${traceDays}</div><div class="rs-sub">&lt;0.1mm (T)</div></div>
+    <div class="rain-stat"><div class="rs-label">DRY DAYS</div><div class="rs-value" style="color:#475569">${dryDays}</div><div class="rs-sub">0mm recorded</div></div>
+  `;
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+function setMonth(m) {
+  currentMonth = m;
+  document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
+  const idx = m === 'ALL' ? 0 : m + 1;
+  document.querySelectorAll('.month-btn')[idx].classList.add('active');
+  refresh();
+}
+
+function toggleVar(v) {
+  visVars[v] = !visVars[v];
+  const btn = document.getElementById('btn-' + v);
+  btn.classList.toggle('active', visVars[v]);
+  btn.classList.toggle('inactive', !visVars[v]);
+  buildCharts(filtered());
+}
+
+function refresh() {
+  const data = filtered();
+  renderStats(data);
+  renderHIInfo(data);
+  buildCharts(data);
+  renderRainStats(data);
+  renderMuniHI();
+}
+
+// ─── CSV DOWNLOAD ─────────────────────────────────────────────────────────────
+function downloadCSV() {
+  const data = filtered();
+  const header = "Date,T_Max_C,T_Min_C,Dry_Bulb_C,Wet_Bulb_C,Dew_Point_C,RH_pct,Heat_Index_C,HI_Category,Rainfall_mm";
+  const rows = data.map(d => {
+    const cat = hiCategory(d.hi);
+    return [d.date,d.tmax,d.tmin,d.dry,d.wet,d.dew,d.rh,d.hi,cat.label,d.rain].join(',');
+  });
+  const csv = [header,...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'tarlac_pagasa_2026.csv';
+  a.click();
+}
+
+// ─── MUNICIPALITY HEAT INDEX ──────────────────────────────────────────────────
+// Tarlac has 18 municipalities. We apply elevation/terrain offset to the
+// current filtered day's average dry-bulb and RH to estimate feel conditions.
+// Offsets are approximate (°C) based on geography relative to Hda. Luisita.
+const MUNICIPALITIES = [
+  { name: "Tarlac City",    dToff:  0.0, rhOff:  0, note: "Reference station" },
+  { name: "Capas",          dToff: +0.8, rhOff: -3, note: "Lower elevation, warmer valley" },
+  { name: "Bamban",         dToff: +0.5, rhOff: -2, note: "Flat terrain, open fields" },
+  { name: "Concepcion",     dToff: +0.3, rhOff: -2, note: "Near Agno River corridor" },
+  { name: "Victoria",       dToff: +0.4, rhOff: -3, note: "Southern plains" },
+  { name: "La Paz",         dToff: +0.6, rhOff: -4, note: "Flat lowland, very open" },
+  { name: "Gerona",         dToff: +0.2, rhOff: -1, note: "Central Tarlac plains" },
+  { name: "Paniqui",        dToff:  0.0, rhOff: -1, note: "Mid-province" },
+  { name: "Ramos",          dToff: -0.1, rhOff:  0, note: "Near Pampanga border" },
+  { name: "San Manuel",     dToff: +0.1, rhOff: -1, note: "Eastern corridor" },
+  { name: "Pura",           dToff: +0.3, rhOff: -2, note: "Interior lowland" },
+  { name: "Moncada",        dToff: -0.2, rhOff: +1, note: "Northern transition zone" },
+  { name: "Camiling",       dToff: -0.5, rhOff: +2, note: "Near foothills, slight relief" },
+  { name: "Anao",           dToff: -0.3, rhOff: +1, note: "Norte Camarines foothills proximity" },
+  { name: "San Clemente",   dToff: -0.8, rhOff: +3, note: "Foothills, cooler microclimate" },
+  { name: "San Jose",       dToff: -1.0, rhOff: +4, note: "Mountainous terrain" },
+  { name: "Mayantoc",       dToff: -1.5, rhOff: +5, note: "Forested hills, most elevated" },
+  { name: "Santa Ignacia",  dToff: -0.4, rhOff: +2, note: "Upland barangays" },
+];
+
+function renderMuniHI() {
+  const data = filtered();
+  if (!data.length) return;
+
+  // Use avg dry bulb and avg RH for the selected period
+  const avgDry = data.reduce((a,b)=>a+b.dry,0)/data.length;
+  const avgRH  = data.reduce((a,b)=>a+b.rh,0)/data.length;
+  const avgHI  = data.reduce((a,b)=>a+b.hi,0)/data.length;
+
+  const sel = document.getElementById('muni-select').value;
+  const munis = sel === 'ALL' ? MUNICIPALITIES : MUNICIPALITIES.filter(m=>m.name===sel);
+
+  const rows = munis.map(m => {
+    const T  = avgDry + m.dToff;
+    const RH = Math.min(100, Math.max(30, avgRH + m.rhOff));
+    const hi = calcHI(T, RH);
+    const rf = parseFloat((hi + (m.dToff * 0.6)).toFixed(1)); // RealFeel proxy
+    const cat = hiCategory(hi);
+    const hiColor = hi>=41?'#f87171':hi>=33?'#fbbf24':hi>=27?'#86efac':'#64748b';
+    const rfColor = rf>=41?'#f87171':rf>=33?'#fbbf24':rf>=27?'#86efac':'#64748b';
+    const bar = Math.max(0, Math.min(100, ((hi-25)/20)*100));
+
+    return `
+      <div style="
+        display:grid;
+        grid-template-columns:160px 1fr 90px 90px 140px;
+        align-items:center;
+        gap:12px;
+        padding:10px 0;
+        border-bottom:1px solid var(--border);
+        font-family:var(--font-mono);
+        font-size:0.75rem;
+      ">
+        <div>
+          <div style="color:var(--text);font-size:0.78rem">${m.name}</div>
+          <div style="color:#334155;font-size:0.62rem;margin-top:2px">${m.note}</div>
+        </div>
+        <div style="position:relative;height:6px;background:#1a2236;border-radius:3px;overflow:hidden;">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${bar}%;background:${hiColor};border-radius:3px;transition:width 0.4s;"></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:${hiColor};font-size:1rem;font-weight:700;line-height:1">${hi.toFixed(1)}°</div>
+          <div style="color:#475569;font-size:0.6rem">HEAT IDX</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:${rfColor};font-size:1rem;font-weight:700;line-height:1">${rf.toFixed(1)}°</div>
+          <div style="color:#475569;font-size:0.6rem">REAL FEEL</div>
+        </div>
+        <div style="text-align:right;">
+          <span style="
+            background:${hiColor}22;
+            border:1px solid ${hiColor}55;
+            color:${hiColor};
+            padding:3px 8px;
+            border-radius:4px;
+            font-size:0.62rem;
+            letter-spacing:0.05em;
+          ">${cat.label}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const periodLabel = currentMonth==='ALL' ? 'Jan–Apr 2026 avg' : MONTH_NAMES[currentMonth]+' 2026 avg';
+
+  document.getElementById('muni-hi-content').innerHTML = `
+    <div style="
+      display:grid;
+      grid-template-columns:160px 1fr 90px 90px 140px;
+      gap:12px;
+      padding-bottom:8px;
+      border-bottom:1px solid var(--border);
+      font-family:var(--font-mono);
+      font-size:0.62rem;
+      color:#334155;
+      letter-spacing:0.06em;
+    ">
+      <div>MUNICIPALITY</div>
+      <div>HI SCALE</div>
+      <div style="text-align:right">HEAT IDX</div>
+      <div style="text-align:right">REAL FEEL</div>
+      <div style="text-align:right">CATEGORY</div>
+    </div>
+    ${rows}
+    <div style="margin-top:12px;font-size:0.65rem;color:#334155;font-family:var(--font-mono);">
+      Based on ${periodLabel} · Dry Bulb: ${avgDry.toFixed(1)}°C · Avg RH: ${avgRH.toFixed(0)}%
+    </div>
+  `;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+refresh();
+</script>
 </body>
 </html>
